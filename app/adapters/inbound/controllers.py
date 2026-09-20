@@ -3,7 +3,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.application.use_cases.services import MetadataService
-from app.domain.models import MetadataCreate, MetadataResponse
+from app.domain.models import MetadataCreate, MetadataResponse, MetadataUpdate
 from app.infrastructure.dependencies import get_metadata_service
 
 router = APIRouter()
@@ -34,7 +34,7 @@ async def get_by_id_metadata(
 @router.put("/metadata/{metadata_id}", response_model=MetadataResponse, tags=["metadata"])
 async def update_metadata(
     metadata_id: str,
-    data: MetadataCreate,
+    data: MetadataUpdate,
     service: MetadataService = Depends(get_metadata_service),
 ) -> dict:
     metadata = await service.update(metadata_id, data)

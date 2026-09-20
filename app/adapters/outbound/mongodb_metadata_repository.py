@@ -13,9 +13,9 @@ class MongoMetadataRepository:
         self._collection = client[database_name]["metadata"]
 
     @staticmethod
-    def _to_response(document: dict[str, Any]) -> dict[str, Any]:
-        document["id"] = str(document.pop("_id"))
-        return document
+    def _to_response(metadata: dict[str, Any]) -> dict[str, Any]:
+        metadata["id"] = str(metadata.pop("_id"))
+        return metadata
     
     @staticmethod
     def _object_id(metadata_id: str) -> Optional[ObjectId]:

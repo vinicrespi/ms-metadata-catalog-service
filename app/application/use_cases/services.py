@@ -1,7 +1,7 @@
 from typing import Any, Optional
 
 from app.application.ports.repositories import MetadataRepositoryPort
-from app.domain.models import MetadataCreate
+from app.domain.models import MetadataCreate, MetadataUpdate
 
 
 class MetadataService:
@@ -18,7 +18,7 @@ class MetadataService:
     async def get_by_id(self, metadata_id: str) -> Optional[dict[str, Any]]:
         return await self._repository.get_by_id(metadata_id)
 
-    async def update(self, metadata_id: str, data: MetadataCreate) -> Optional[dict[str, Any]]:
+    async def update(self, metadata_id: str, data: MetadataUpdate) -> Optional[dict[str, Any]]:
         return await self._repository.update(metadata_id, data)
 
     async def delete(self, metadata_id: str) -> bool:

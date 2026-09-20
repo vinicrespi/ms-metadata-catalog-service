@@ -11,7 +11,7 @@ class MetadataCreate(BaseModel):
     description: str = Field(min_length=1, max_length=500)
     owner: str = Field(min_length=1, max_length=120)
     source_system: str = Field(min_length=1, max_length=120)
-    payload: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     version: Optional[str] = Field(default=None, min_length=1, max_length=20)
 
 class MetadataUpdate(BaseModel):
@@ -19,7 +19,7 @@ class MetadataUpdate(BaseModel):
     description: Optional[str] = Field(default=None, min_length=1, max_length=500)
     owner: Optional[str] = Field(default=None, min_length=1, max_length=120)
     source_system: Optional[str] = Field(default=None, min_length=1, max_length=120)
-    payload: Optional[dict[str, Any]] = Field(default=None)
+    metadata: Optional[dict[str, Any]] = Field(default=None)
     version: Optional[str] = Field(default=None, min_length=1, max_length=20)
 
 class MetadataResponse(BaseModel):
@@ -30,7 +30,7 @@ class MetadataResponse(BaseModel):
     description: str
     owner: str
     source_system: str
-    payload: dict[str, Any]
+    metadata: dict[str, Any]
     version: Optional[str]
     created_at: datetime
     updated_at: datetime
