@@ -3,5 +3,5 @@ METADATA_CREATE_PAYLOAD = {
     "description": "Payment table",
     "owner": "finance",
     "source_system": "postgres",
-    "payload": {"columns": ["id", "customer_id", "amount"]},
+    "metadata": {"columns": ["id", "customer_id", "amount"]},
 }
