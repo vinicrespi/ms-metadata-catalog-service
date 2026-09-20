@@ -1,0 +1,1 @@
+"""Adapters that connect the application core to external systems."""
