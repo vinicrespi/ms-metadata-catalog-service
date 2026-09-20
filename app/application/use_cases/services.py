@@ -11,3 +11,9 @@ class MetadataService:
 
     async def create(self, data: MetadataCreate) -> dict[str, Any]:
         return await self._repository.create(data)
+
+    async def get_all(self) -> list[dict[str, Any]]:
+        return await self._repository.get_all()
+
+    async def get_by_id(self, metadata_id: str) -> Optional[dict[str, Any]]:
+        return await self._repository.get_by_id(metadata_id)

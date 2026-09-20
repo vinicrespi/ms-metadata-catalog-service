@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from app.application.use_cases.services import MetadataService
@@ -25,20 +27,57 @@ class InMemoryMetadataRepository:
         self.next_id += 1
         return metadata
 
+    async def get_all(self):
+        return list(self.items.values())
 
-client = TestClient(app)
+    async def get_by_id(self, metadata_id):
+        return self.items.get(metadata_id)
 
-def test_metadata_health_endpoint() -> None:
-        response = client.get("/health")
-        assert response.status_code == 200
 
-def test_metadata_create_endpoint() -> None:
+@pytest.fixture
+def api_client():
     repository = InMemoryMetadataRepository()
     app.dependency_overrides[get_metadata_service] = lambda: MetadataService(repository)
 
-    try:
-        created = client.post("/metadata", json=METADATA_CREATE_PAYLOAD)
+    with TestClient(app) as client:
+        yield client
 
-        assert created.status_code == 201
-    finally:
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
+
+
+def test_metadata_health_endpoint(api_client: TestClient) -> None:
+    response = api_client.get("/health")
+    assert response.status_code == 200
+
+
+def test_metadata_create_endpoint(api_client: TestClient) -> None:
+    created = api_client.post("/metadata", json=METADATA_CREATE_PAYLOAD)
+
+    assert created.status_code == 201
+
+
+def test_metadata_get_all_endpoint(api_client: TestClient) -> None:
+    api_client.post("/metadata", json=METADATA_CREATE_PAYLOAD)
+
+    response = api_client.get("/metadata")
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["name"] == "payments"
+
+
+def test_metadata_get_by_id_endpoint(api_client: TestClient) -> None:
+    created = api_client.post("/metadata", json=METADATA_CREATE_PAYLOAD)
+    metadata_id = created.json()["id"]
+
+    response = api_client.get(f"/metadata/{metadata_id}")
+
+    assert response.status_code == 200
+    assert response.json()["id"] == metadata_id
+
+
+def test_metadata_get_by_id_returns_not_found(api_client: TestClient) -> None:
+    response = api_client.get("/metadata/nonexistent")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Metadata not found"}
