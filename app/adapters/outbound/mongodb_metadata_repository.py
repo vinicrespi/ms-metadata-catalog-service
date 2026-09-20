@@ -4,7 +4,7 @@ from typing import Any, Optional
 from bson import ObjectId
 from pymongo import AsyncMongoClient
 
-from app.domain.models import MetadataCreate
+from app.domain.models import MetadataCreate, MetadataUpdate
 
 
 class MongoMetadataRepository:
@@ -38,3 +38,21 @@ class MongoMetadataRepository:
             return None
         metadata = await self._collection.find_one({"_id": object_id})
         return self._to_response(metadata) if metadata else None
+
+    async def update(self, metadata_id: str, data: MetadataUpdate) -> Optional[dict[str, Any]]:
+        object_id = self._object_id(metadata_id)
+        if object_id is None:
+            return None
+        values = data.model_dump(exclude_unset=True)
+        values["updated_at"] = datetime.now(timezone.utc)
+        metadata = await self._collection.find_one_and_update(
+            {"_id": object_id}, {"$set": values}, return_document=True
+        )
+        return self._to_response(metadata) if metadata else None
+
+    async def delete(self, metadata_id: str) -> bool:
+        object_id = self._object_id(metadata_id)
+        if object_id is None:
+            return False
+        result = await self._collection.delete_one({"_id": object_id})
+        return result.deleted_count == 1

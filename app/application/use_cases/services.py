@@ -17,3 +17,9 @@ class MetadataService:
 
     async def get_by_id(self, metadata_id: str) -> Optional[dict[str, Any]]:
         return await self._repository.get_by_id(metadata_id)
+
+    async def update(self, metadata_id: str, data: MetadataCreate) -> Optional[dict[str, Any]]:
+        return await self._repository.update(metadata_id, data)
+
+    async def delete(self, metadata_id: str) -> bool:
+        return await self._repository.delete(metadata_id)

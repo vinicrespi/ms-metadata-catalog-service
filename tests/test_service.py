@@ -57,3 +57,29 @@ async def test_service_returns_none_when_metadata_does_not_exist() -> None:
 
     assert result is None
     repository.get_by_id.assert_awaited_once_with("missing")
+
+
+@pytest.mark.asyncio
+async def test_service_delegates_update_to_repository() -> None:
+    repository = AsyncMock()
+    expected = {"id": "1", "name": "payments", "owner": "platform"}
+    repository.update.return_value = expected
+    service = MetadataService(repository)
+    data = MetadataCreate(**{**METADATA_CREATE_PAYLOAD, "owner": "platform"})
+
+    result = await service.update("1", data)
+
+    assert result == expected
+    repository.update.assert_awaited_once_with("1", data)
+
+
+@pytest.mark.asyncio
+async def test_service_delegates_delete_to_repository() -> None:
+    repository = AsyncMock()
+    repository.delete.return_value = True
+    service = MetadataService(repository)
+
+    result = await service.delete("1")
+
+    assert result is True
+    repository.delete.assert_awaited_once_with("1")

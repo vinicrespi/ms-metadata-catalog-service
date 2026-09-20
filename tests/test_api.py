@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.application.use_cases.services import MetadataService
-from app.infrastructure.database import get_metadata_service
+from app.infrastructure.dependencies import get_metadata_service
 from app.main import app
 from tests.mocks.metadata_create_payload import METADATA_CREATE_PAYLOAD
 
@@ -32,6 +32,17 @@ class InMemoryMetadataRepository:
 
     async def get_by_id(self, metadata_id):
         return self.items.get(metadata_id)
+
+    async def update(self, metadata_id, data):
+        metadata = self.items.get(metadata_id)
+        if metadata is None:
+            return None
+        metadata.update(data.model_dump())
+        metadata["updated_at"] = datetime.now(timezone.utc)
+        return metadata
+
+    async def delete(self, metadata_id):
+        return self.items.pop(metadata_id, None) is not None
 
 
 @pytest.fixture
@@ -81,3 +92,36 @@ def test_metadata_get_by_id_returns_not_found(api_client: TestClient) -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Metadata not found"}
+
+
+def test_metadata_update_endpoint(api_client: TestClient) -> None:
+    created = api_client.post("/metadata", json=METADATA_CREATE_PAYLOAD)
+    metadata_id = created.json()["id"]
+    updated_payload = {**METADATA_CREATE_PAYLOAD, "owner": "platform"}
+
+    response = api_client.put(f"/metadata/{metadata_id}", json=updated_payload)
+
+    assert response.status_code == 200
+    assert response.json()["owner"] == "platform"
+
+
+def test_metadata_update_returns_not_found(api_client: TestClient) -> None:
+    response = api_client.put("/metadata/missing", json=METADATA_CREATE_PAYLOAD)
+
+    assert response.status_code == 404
+
+
+def test_metadata_delete_endpoint(api_client: TestClient) -> None:
+    created = api_client.post("/metadata", json=METADATA_CREATE_PAYLOAD)
+    metadata_id = created.json()["id"]
+
+    response = api_client.delete(f"/metadata/{metadata_id}")
+
+    assert response.status_code == 204
+    assert api_client.get(f"/metadata/{metadata_id}").status_code == 404
+
+
+def test_metadata_delete_returns_not_found(api_client: TestClient) -> None:
+    response = api_client.delete("/metadata/missing")
+
+    assert response.status_code == 404

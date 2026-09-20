@@ -1,6 +1,6 @@
 from typing import Any, Optional, Protocol
 
-from app.domain.models import MetadataCreate
+from app.domain.models import MetadataCreate, MetadataUpdate
 
 
 class MetadataRepositoryPort(Protocol):
@@ -12,4 +12,14 @@ class MetadataRepositoryPort(Protocol):
         ...
 
     async def get_by_id(self, metadata_id: str) -> Optional[dict[str, Any]]:
+        ...
+
+    async def update(
+        self,
+        metadata_id: str,
+        data: MetadataUpdate,
+    ) -> Optional[dict[str, Any]]:
+        ...
+
+    async def delete(self, metadata_id: str) -> bool:
         ...
