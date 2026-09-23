@@ -1,8 +1,18 @@
 {
   "info": {
-    "name": "Metadata Catalog Service",
-    "description": "Casos de teste para os endpoints da API de catalogo de metadados.",
+    "name": "Metadata Service",
+    "description": "Casos de teste para autenticacao JWT, CRUD de Metadata e consulta de historico.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
   },
   "variable": [
     {
@@ -12,34 +22,112 @@
     {
       "key": "metadataId",
       "value": ""
+    },
+    {
+      "key": "username",
+      "value": "postman_user"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
     }
   ],
   "item": [
     {
-      "name": "Health",
+      "name": "Authentication",
       "item": [
         {
-          "name": "Health check - 200",
+          "name": "Create user - 201",
           "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["health"]
-            }
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"postman-password-123\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/users"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Service is healthy', function () {",
-                  "    pm.expect(pm.response.json().status).to.eql('ok');",
-                  "});"
+                  "pm.test('Status is 201 or user already exists', function () { pm.expect([201, 409]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - 200",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"postman-password-123\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/token"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "pm.collectionVariables.set('accessToken', body.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login with invalid credentials - 401",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"wrong-password\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/token"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check - 200",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Service is healthy', function () { pm.expect(pm.response.json().status).to.eql('ok'); });"
                 ]
               }
             }
@@ -51,38 +139,29 @@
       "name": "Metadata CRUD",
       "item": [
         {
-          "name": "Create metadata - 201",
+          "name": "Create metadata version - 201",
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"}
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Changed-By", "value": "postman" }
             ],
             "body": {
               "mode": "raw",
-                "raw": "{\n  \"name\": \"payments\",\n  \"description\": \"Payment table\",\n  \"owner\": \"finance\",\n  \"source_system\": \"postgres\",\n  \"metadata\": {\n    \"columns\": [\"id\", \"customer_id\", \"amount\"]\n  }\n}"
+              "raw": "{\n  \"table_name\": \"vendas_diarias\",\n  \"description\": \"Dados consolidados de vendas\",\n  \"domain\": \"Financeiro\",\n  \"storage\": {\n    \"format\": \"parquet\",\n    \"storage_path\": \"s3://meu-bucket/financeiro/vendas_diarias/\",\n    \"is_partitioned\": true\n  },\n  \"current_version\": 3,\n  \"current_schema\": [\n    {\n      \"field\": \"id_venda\",\n      \"type\": \"INT\",\n      \"nullable\": false,\n      \"description\": \"ID unico da venda\"\n    }\n  ],\n  \"owner\": \"equipe_dados_fin\",\n  \"created_at\": \"2025-01-10T10:00:00Z\",\n  \"updated_at\": \"2026-09-23T09:00:00Z\",\n  \"data_classification\": \"restrito\"\n}"
             },
-            "url": {
-              "raw": "{{baseUrl}}/metadata",
-              "host": ["{{baseUrl}}"],
-              "path": ["metadata"]
-            }
+            "url": "{{baseUrl}}/metadata?change_type=INITIAL_CREATION&details=Created%20from%20Postman"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 201', function () {",
-                  "    pm.response.to.have.status(201);",
-                  "});",
+                  "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
                   "const body = pm.response.json();",
-                  "pm.test('Response contains an id', function () {",
-                  "    pm.expect(body.id).to.be.a('string').and.not.empty;",
-                  "});",
+                  "pm.test('Response contains an id', function () { pm.expect(body.id).to.be.a('string').and.not.empty; });",
                   "pm.collectionVariables.set('metadataId', body.id);",
-                  "pm.test('Metadata was persisted', function () {",
-                  "    pm.expect(body.metadata.columns).to.include('id');",
-                  "});"
+                  "pm.test('Metadata table is correct', function () { pm.expect(body.table_name).to.eql('vendas_diarias'); });"
                 ]
               }
             }
@@ -93,23 +172,15 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/metadata",
-              "host": ["{{baseUrl}}"],
-              "path": ["metadata"]
-            }
+            "url": "{{baseUrl}}/metadata"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Response is an array', function () {",
-                  "    pm.expect(pm.response.json()).to.be.an('array');",
-                  "});"
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is an array', function () { pm.expect(pm.response.json()).to.be.an('array'); });"
                 ]
               }
             }
@@ -120,23 +191,15 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/metadata/{{metadataId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["metadata", "{{metadataId}}"]
-            }
+            "url": "{{baseUrl}}/metadata/{{metadataId}}"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Returned id matches requested id', function () {",
-                  "    pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('metadataId'));",
-                  "});"
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returned id matches requested id', function () { pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('metadataId')); });"
                 ]
               }
             }
@@ -147,29 +210,40 @@
           "request": {
             "method": "PUT",
             "header": [
-              {"key": "Content-Type", "value": "application/json"}
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"owner\": \"platform\"\n}"
+              "raw": "{\n  \"owner\": \"platform\",\n  \"description\": \"Dados atualizados\"\n}"
             },
-            "url": {
-              "raw": "{{baseUrl}}/metadata/{{metadataId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["metadata", "{{metadataId}}"]
-            }
+            "url": "{{baseUrl}}/metadata/{{metadataId}}"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Owner was updated', function () {",
-                  "    pm.expect(pm.response.json().owner).to.eql('platform');",
-                  "});"
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Owner was updated', function () { pm.expect(pm.response.json().owner).to.eql('platform'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get metadata histories - 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/metadata/{{metadataId}}/histories"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is an array', function () { pm.expect(pm.response.json()).to.be.an('array'); });"
                 ]
               }
             }
@@ -180,20 +254,14 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/metadata/{{metadataId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["metadata", "{{metadataId}}"]
-            }
+            "url": "{{baseUrl}}/metadata/{{metadataId}}"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 204', function () {",
-                  "    pm.response.to.have.status(204);",
-                  "});"
+                  "pm.test('Status is 204', function () { pm.response.to.have.status(204); });"
                 ]
               }
             }
@@ -205,30 +273,44 @@
       "name": "Error cases",
       "item": [
         {
-          "name": "Create metadata with invalid payload - 422",
+          "name": "Metadata without token - 401",
           "request": {
-            "method": "POST",
-            "header": [
-              {"key": "Content-Type", "value": "application/json"}
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"\",\n  \"description\": \"Payment table\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/metadata",
-              "host": ["{{baseUrl}}"],
-              "path": ["metadata"]
-            }
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/metadata"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 422', function () {",
-                  "    pm.response.to.have.status(422);",
-                  "});"
+                  "pm.test('Status is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('Authentication error is standardized', function () { pm.expect(pm.response.json().error.code).to.eql('http_error'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create metadata with invalid payload - 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"table_name\": \"\",\n  \"current_version\": \"invalid\"\n}"
+            },
+            "url": "{{baseUrl}}/metadata"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 422', function () { pm.response.to.have.status(422); });"
                 ]
               }
             }
@@ -239,20 +321,14 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/metadata/000000000000000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["metadata", "000000000000000000000000"]
-            }
+            "url": "{{baseUrl}}/metadata/000000000000000000000000"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 404', function () {",
-                  "    pm.response.to.have.status(404);",
-                  "});"
+                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
                 ]
               }
             }
@@ -263,26 +339,20 @@
           "request": {
             "method": "PUT",
             "header": [
-              {"key": "Content-Type", "value": "application/json"}
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"owner\": \"finance\"\n}"
             },
-            "url": {
-              "raw": "{{baseUrl}}/metadata/000000000000000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["metadata", "000000000000000000000000"]
-            }
+            "url": "{{baseUrl}}/metadata/000000000000000000000000"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 404', function () {",
-                  "    pm.response.to.have.status(404);",
-                  "});"
+                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
                 ]
               }
             }
@@ -293,20 +363,14 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/metadata/000000000000000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["metadata", "000000000000000000000000"]
-            }
+            "url": "{{baseUrl}}/metadata/000000000000000000000000"
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status is 404', function () {",
-                  "    pm.response.to.have.status(404);",
-                  "});"
+                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
                 ]
               }
             }
