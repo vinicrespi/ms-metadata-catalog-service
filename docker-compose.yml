@@ -1,0 +1,46 @@
+services:
+  mongo:
+    image: mongo:8
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - metadata-mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok' | grep 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  mongo-init:
+    image: mongo:8
+    depends_on:
+      mongo:
+        condition: service_healthy
+    command:
+      - mongosh
+      - --host
+      - mongo:27017
+      - --eval
+      - >-
+        try { rs.status() } catch (error) {
+          rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] });
+        }
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: mongodb://mongo:27017/?replicaSet=rs0
+      DATABASE_NAME: metadata_catalog
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret-key-to-at-least-32-bytes}
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+
+volumes:
+  metadata-mongodb-data:

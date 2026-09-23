@@ -1,150 +1,162 @@
-# Metadata Catalog Service
+# Metadata Service
 
-Microserviço para cadastro e consulta de metadados de tabelas, desenvolvido com FastAPI e MongoDB.
+Microserviço para gerenciamento de metadados de tabelas, desenvolvido com FastAPI, MongoDB e autenticação JWT.
 
-## Running locally
+## Execução com Docker Compose
 
-O serviço precisa de uma instância MongoDB disponível. As configurações podem ser definidas pelas variáveis `MONGODB_URL` e `MONGODB_DATABASE`.
-
-Valores utilizados localmente:
-
-```text
-MONGODB_URL=mongodb://localhost:27017
-MONGODB_DATABASE=metadata_catalog
-```
-
-### 1. Inicie o Colima
-
-No macOS, o Colima fornece a máquina virtual necessária para executar o Docker:
+O Compose inicia a API e um MongoDB em replica set, necessário para transações:
 
 ```bash
-colima start
-docker info
+docker compose up --build
 ```
 
-Se ainda não tiver as ferramentas instaladas:
+Serviços disponíveis:
+
+- API: `http://localhost:8000`
+- Swagger: `http://localhost:8000/docs`
+- MongoDB: `mongodb://localhost:27017/?replicaSet=rs0`
+
+Para encerrar os serviços:
 
 ```bash
-brew install colima docker
+docker compose down
 ```
 
-### 2. Inicie o MongoDB com Docker
-
-Crie o container na primeira execução:
+Os dados ficam no volume `metadata-mongodb-data`. Para removê-los também:
 
 ```bash
-docker run -d \
-	--name metadata-mongodb \
-	-p 27017:27017 \
-	-v metadata-mongodb-data:/data/db \
-	mongo:8
+docker compose down -v
 ```
 
-Confirme se o container está ativo:
+## Execução local
 
-```bash
-docker ps
-```
-
-Nas próximas execuções, caso o container já exista:
-
-```bash
-docker start metadata-mongodb
-```
-
-Para parar o MongoDB:
-
-```bash
-docker stop metadata-mongodb
-```
-
-### 3. Inicie a API
+Requisitos: Python 3.9+, `uv`, Docker e MongoDB em replica set.
 
 ```bash
 uv sync --dev
-export MONGODB_URL=mongodb://localhost:27017
-export MONGODB_DATABASE=metadata_catalog
-uv run fastapi dev app/main.py
+docker compose up -d mongo mongo-init
+uv run uvicorn app.main:app --reload
 ```
 
-A documentação interativa está disponível em `http://localhost:8000/docs`.
+Variáveis de ambiente:
 
-Valide a API antes de usar o Postman:
+```env
+DATABASE_URL=mongodb://localhost:27017/?replicaSet=rs0
+DATABASE_NAME=metadata_catalog
+SECRET_KEY=uma-chave-com-pelo-menos-32-caracteres
+```
+
+`SECRET_KEY` deve ter pelo menos 32 bytes para uso seguro com HS256.
+
+## Autenticação
+
+Crie um usuário:
 
 ```bash
-curl http://localhost:8000/health
+curl -X POST http://localhost:8000/auth/users \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"senha-segura-123"}'
 ```
 
-Resposta esperada:
+Obtenha um token:
 
-```json
-{"status": "ok"}
+```bash
+curl -X POST http://localhost:8000/auth/token \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"senha-segura-123"}'
 ```
+
+Use o token nos endpoints de Metadata:
+
+```bash
+curl http://localhost:8000/metadata \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+`/health`, `/auth/users` e `/auth/token` são públicos. Os endpoints de Metadata exigem Bearer token.
 
 ## Endpoints
 
-| Método | Endpoint | Descrição |
-| --- | --- | --- |
-| `GET` | `/health` | Verifica a saúde da aplicação |
-| `POST` | `/metadata` | Cria um metadado |
-| `GET` | `/metadata` | Lista os metadados |
-| `GET` | `/metadata/{metadata_id}` | Busca um metadado por ID |
-| `PUT` | `/metadata/{metadata_id}` | Atualiza um metadado |
-| `DELETE` | `/metadata/{metadata_id}` | Remove um metadado |
+| Método | Endpoint | Autenticação | Descrição |
+| --- | --- | --- | --- |
+| `GET` | `/health` | Não | Verifica a saúde da aplicação |
+| `POST` | `/auth/users` | Não | Cria um usuário |
+| `POST` | `/auth/token` | Não | Autentica e retorna JWT |
+| `POST` | `/metadata` | Sim | Cria uma versão do metadata e registra o histórico |
+| `GET` | `/metadata` | Sim | Lista os metadados |
+| `GET` | `/metadata/{metadata_id}` | Sim | Busca metadata por ID |
+| `PUT` | `/metadata/{metadata_id}` | Sim | Atualiza metadata parcialmente |
+| `DELETE` | `/metadata/{metadata_id}` | Sim | Remove metadata |
+| `GET` | `/metadata/{metadata_id}/histories` | Sim | Lista o histórico do metadata |
 
-Exemplo de payload:
+## Payload de Metadata
 
 ```json
 {
-	"name": "payments",
-	"description": "Payment table",
-	"owner": "finance",
-	"source_system": "postgres",
-	"payload": {
-		"columns": ["id", "customer_id", "amount"]
-	}
+  "table_name": "vendas_diarias",
+  "description": "Dados consolidados de vendas",
+  "domain": "Financeiro",
+  "storage": {
+    "format": "parquet",
+    "storage_path": "s3://meu-bucket/financeiro/vendas_diarias/",
+    "is_partitioned": true
+  },
+  "current_version": 3,
+  "current_schema": [
+    {
+      "field": "id_venda",
+      "type": "INT",
+      "nullable": false,
+      "description": "ID unico da venda"
+    }
+  ],
+  "owner": "equipe_dados_fin",
+  "created_at": "2025-01-10T10:00:00Z",
+  "updated_at": "2026-09-23T09:00:00Z",
+  "data_classification": "restrito"
 }
 ```
 
+Ao criar um metadata, a API salva o documento em `tab_metadata` e registra a alteração em `tab_schema_history` dentro da mesma transação MongoDB.
+
 ## Postman
 
-A coleção está disponível em [postman/metadata-catalog.postman_collection.json](postman/metadata-catalog.postman_collection.json).
+Importe [postman/metadata-catalog.postman_collection.json](postman/metadata-catalog.postman_collection.json).
 
-Para executar:
+Execute os requests nesta ordem:
 
-1. Inicie o Colima.
-2. Inicie o MongoDB com Docker.
-3. Inicie a API.
-4. No Postman, selecione **Import** e escolha a coleção.
-5. Execute `Health check`.
-6. Execute `Create metadata`.
-7. Execute os demais requests do grupo `Metadata CRUD`.
+1. `Create user - 201`
+2. `Login - 200`
+3. Os requests de `Metadata CRUD`
 
-O request de criação salva automaticamente o ID retornado na variável `metadataId`. A coleção também contém casos de erro `404` e `422`.
+O login salva automaticamente o JWT na variável `accessToken`, usada como Bearer token pelos requests protegidos. A coleção também contém casos de erro `404` e `422`.
 
-## Architecture
+## Arquitetura
 
-The project follows hexagonal architecture:
+O projeto segue uma arquitetura hexagonal:
 
-- `app/domain`: domain models and validation rules.
-- `app/application`: use cases and outbound ports, independent from infrastructure.
-- `app/adapters/inbound`: FastAPI HTTP adapter.
-- `app/adapters/outbound`: MongoDB adapter that implements the repository port.
-- `app/infrastructure/config.py`: external settings loaded from environment variables.
-- `app/infrastructure/database.py`: composition root and MongoDB lifecycle/dependency wiring.
-- `app/infrastructure/dependencies.py`: FastAPI dependency providers.
+- `app/domain`: modelos e regras de domínio.
+- `app/application`: casos de uso e ports.
+- `app/adapters/inbound`: rotas FastAPI e handlers de erro.
+- `app/adapters/outbound`: adapters MongoDB e mappers BSON.
+- `app/infrastructure`: configuração, segurança, banco e dependências.
 
-## Tests
+Erros são retornados em formato padronizado:
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Request validation failed",
+    "details": []
+  }
+}
+```
+
+## Testes
 
 ```bash
 uv run pytest
 ```
 
-Os testes usam um repositório em memória e mocks, portanto não precisam de uma instância MongoDB ativa.
-
-Para executar testes específicos:
-
-```bash
-uv run pytest tests/test_api.py -q
-uv run pytest tests/test_service.py -q
-```
+Os testes unitários usam mocks e repositórios em memória. Os testes de integração locais exigem o MongoDB iniciado pelo Compose.
