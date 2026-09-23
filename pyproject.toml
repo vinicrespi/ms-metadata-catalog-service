@@ -7,6 +7,8 @@ dependencies = [
     "pymongo>=4.9.0",
     "pydantic-settings>=2.7.0",
     "pydantic>=2.13.5",
+    "PyJWT>=2.8.0",
+    "pwdlib[argon2,bcrypt]>=0.2.1",
 ]
 
 [dependency-groups]
