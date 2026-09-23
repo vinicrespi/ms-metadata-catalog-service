@@ -6,9 +6,11 @@ from fastapi.testclient import TestClient
 
 from app.application.use_cases.history_service import HistoryService
 from app.application.use_cases.services import MetadataService
+from app.application.use_cases.validate_and_update_schema import ValidateAndUpdateSchema
 from app.infrastructure.dependencies import (
     get_history_service,
     get_metadata_service,
+    get_validate_and_update_schema,
     require_authenticated_user,
 )
 from app.main import app
@@ -79,6 +81,9 @@ def api_client():
     metadata_repository = InMemoryMetadataRepository()
     history_repository = InMemoryHistoryRepository()
     app.dependency_overrides[get_metadata_service] = lambda: MetadataService(metadata_repository)
+    app.dependency_overrides[get_validate_and_update_schema] = lambda: ValidateAndUpdateSchema(
+        metadata_repository
+    )
     app.dependency_overrides[get_history_service] = lambda: HistoryService(history_repository)
     app.dependency_overrides[require_authenticated_user] = lambda: {"username": "test"}
 
@@ -122,6 +127,36 @@ def test_metadata_history_is_scoped_by_metadata_id(api_client: TestClient) -> No
     response = api_client.get("/metadata/metadata-1/histories")
     assert response.status_code == 200
     assert response.json() == [{"table_id": "metadata-1", "version": 3}]
+
+
+def test_schema_update_validates_and_increments_version(api_client: TestClient) -> None:
+    created = api_client.post("/metadata", json=METADATA_PAYLOAD)
+    metadata_id = created.json()["id"]
+    new_schema = METADATA_PAYLOAD["current_schema"] + [
+        {"field": "source", "type": "STRING", "nullable": True, "description": None}
+    ]
+
+    response = api_client.put(
+        f"/metadata/{metadata_id}",
+        json={"current_schema": new_schema},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["current_version"] == METADATA_PAYLOAD["current_version"] + 1
+    assert response.json()["current_schema"] == new_schema
+
+
+def test_schema_update_rejects_breaking_change(api_client: TestClient) -> None:
+    created = api_client.post("/metadata", json=METADATA_PAYLOAD)
+    metadata_id = created.json()["id"]
+
+    response = api_client.put(
+        f"/metadata/{metadata_id}",
+        json={"current_schema": []},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "http_error"
 
 
 def test_invalid_metadata_payload_returns_standard_error(api_client: TestClient) -> None:

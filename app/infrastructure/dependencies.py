@@ -9,6 +9,7 @@ from app.application.ports.metadata_port import MetadataPort
 from app.application.use_cases.history_service import HistoryService
 from app.application.use_cases.auth_service import AuthService
 from app.application.use_cases.services import MetadataService
+from app.application.use_cases.validate_and_update_schema import ValidateAndUpdateSchema
 from app.infrastructure.security import ALGORITHM, settings
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -21,6 +22,12 @@ def get_metadata_service(request: Request) -> MetadataService:
 
 def get_metadata_repository(request: Request) -> MetadataPort:
     return request.app.state.metadata_repository
+
+
+def get_validate_and_update_schema(
+    repository: MetadataPort = Depends(get_metadata_repository),
+) -> ValidateAndUpdateSchema:
+    return ValidateAndUpdateSchema(repository)
 
 
 def get_history_service(request: Request) -> HistoryService:
