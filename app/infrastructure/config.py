@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     DATABASE_NAME: str = Field(
         validation_alias=AliasChoices("DATABASE_NAME", "MONGODB_DATABASE")
     )
+    ALGORITHM: str = "HS256"
 
 
 settings = Settings() 
