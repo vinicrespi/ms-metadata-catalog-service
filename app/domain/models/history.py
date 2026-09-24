@@ -20,7 +20,6 @@ class History(BaseModel):
 
     id: Optional[str] = Field(default=None, alias="_id")
     table_id: str
-    table_name: str
     version: int
     changed_at: datetime
     changed_by: str

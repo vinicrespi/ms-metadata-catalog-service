@@ -1,7 +1,8 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 
+from app.adapters.inbound.error_handlers import DomainError, MetadataNotFoundError
 from app.application.use_cases.auth_service import AuthService
 from app.application.use_cases.history_service import HistoryService
 from app.application.use_cases.services import MetadataService
@@ -95,7 +96,7 @@ async def get_metadata(
 ) -> dict[str, Any]:
     metadata = await service.get_by_id(metadata_id)
     if metadata is None:
-        raise HTTPException(status_code=404, detail="Metadata not found")
+        raise MetadataNotFoundError("Metadata not found")
     return metadata
 
 
@@ -124,14 +125,14 @@ async def update_metadata(
             )
         except ValueError as exc:
             if "not found" in str(exc).lower():
-                raise HTTPException(status_code=404, detail="Metadata not found") from exc
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+                raise MetadataNotFoundError("Metadata not found") from exc
+            raise DomainError(str(exc)) from exc
     else:
         metadata = await service.update(
             metadata_id, data, changed_by, change_type, details
         )
     if metadata is None:
-        raise HTTPException(status_code=404, detail="Metadata not found")
+        raise MetadataNotFoundError("Metadata not found")
     return metadata
 
 
@@ -146,4 +147,4 @@ async def delete_metadata(
     _: dict[str, Any] = Depends(require_authenticated_user),
 ) -> None:
     if not await service.delete(metadata_id):
-        raise HTTPException(status_code=404, detail="Metadata not found")
+        raise MetadataNotFoundError("Metadata not found")

@@ -1,17 +1,12 @@
 import pytest
 
 from app.application.use_cases.validate_and_update_schema import ValidateAndUpdateSchema
+from tests.mocks.schema_validation_payload import ADDITIONAL_SCHEMA, BASE_SCHEMA, NEW_SCHEMA, OLD_SCHEMA
 
-
-BASE_SCHEMA = [
-    {"field": "id", "type": "INT", "nullable": False, "description": None},
-]
 
 
 def test_additive_schema_change_is_allowed() -> None:
-    new_schema = BASE_SCHEMA + [
-        {"field": "source", "type": "STRING", "nullable": True, "description": None}
-    ]
+    new_schema = BASE_SCHEMA + ADDITIONAL_SCHEMA
     assert ValidateAndUpdateSchema._detect_breaking_changes(BASE_SCHEMA, new_schema) == []
 
 
@@ -38,9 +33,7 @@ def test_breaking_schema_changes(new_schema, expected_message: str) -> None:
 
 
 def test_non_nullable_transition_is_breaking() -> None:
-    old_schema = [{"field": "name", "type": "STRING", "nullable": True}]
-    new_schema = [{"field": "name", "type": "STRING", "nullable": False}]
-    errors = ValidateAndUpdateSchema._detect_breaking_changes(old_schema, new_schema)
+    errors = ValidateAndUpdateSchema._detect_breaking_changes(OLD_SCHEMA, NEW_SCHEMA)
     assert errors == ["field became non-nullable: name"]
 
 

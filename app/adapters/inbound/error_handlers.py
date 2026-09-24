@@ -39,7 +39,7 @@ def _error_response(
 async def handle_http_exception(
     request: Request, exception: HTTPException
 ) -> JSONResponse:
-    logger.warning(
+    logger.error(
         "HTTP error method=%s path=%s status=%s",
         request.method,
         request.url.path,
@@ -56,7 +56,7 @@ async def handle_http_exception(
 async def handle_validation_exception(
     request: Request, exception: RequestValidationError
 ) -> JSONResponse:
-    logger.warning(
+    logger.error(
         "Validation error method=%s path=%s errors=%d",
         request.method,
         request.url.path,
@@ -73,7 +73,7 @@ async def handle_validation_exception(
 async def handle_not_found_exception(
     request: Request, exception: MetadataNotFoundError
 ) -> JSONResponse:
-    logger.warning("Metadata not found method=%s path=%s", request.method, request.url.path)
+    logger.error("Metadata not found method=%s path=%s", request.method, request.url.path)
     return _error_response(404, "metadata_not_found", str(exception) or "Metadata not found")
 
 

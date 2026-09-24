@@ -14,31 +14,8 @@ from app.infrastructure.dependencies import (
     require_authenticated_user,
 )
 from app.main import app
-
-
-METADATA_PAYLOAD = {
-    "table_name": "vendas_diarias",
-    "description": "Dados consolidados de vendas",
-    "domain": "Financeiro",
-    "storage": {
-        "format": "parquet",
-        "storage_path": "s3://bucket/vendas",
-        "is_partitioned": True,
-    },
-    "current_version": 3,
-    "current_schema": [
-        {
-            "field": "id_venda",
-            "type": "INT",
-            "nullable": False,
-            "description": "ID da venda",
-        }
-    ],
-    "owner": "equipe_dados_fin",
-    "created_at": "2025-01-10T10:00:00Z",
-    "updated_at": "2026-09-23T09:00:00Z",
-    "data_classification": "restrito",
-}
+from tests.mocks.metadata_create_payload import METADATA_PAYLOAD
+from tests.mocks.schema_validation_payload import ADDITIONAL_SCHEMA
 
 
 class InMemoryMetadataRepository:
@@ -132,9 +109,7 @@ def test_metadata_history_is_scoped_by_metadata_id(api_client: TestClient) -> No
 def test_schema_update_validates_and_increments_version(api_client: TestClient) -> None:
     created = api_client.post("/metadata", json=METADATA_PAYLOAD)
     metadata_id = created.json()["id"]
-    new_schema = METADATA_PAYLOAD["current_schema"] + [
-        {"field": "source", "type": "STRING", "nullable": True, "description": None}
-    ]
+    new_schema = METADATA_PAYLOAD["current_schema"] + ADDITIONAL_SCHEMA
 
     response = api_client.put(
         f"/metadata/{metadata_id}",
@@ -156,7 +131,7 @@ def test_schema_update_rejects_breaking_change(api_client: TestClient) -> None:
     )
 
     assert response.status_code == 400
-    assert response.json()["error"]["code"] == "http_error"
+    assert response.json()["error"]["code"] == "domain_error"
 
 
 def test_invalid_metadata_payload_returns_standard_error(api_client: TestClient) -> None:
