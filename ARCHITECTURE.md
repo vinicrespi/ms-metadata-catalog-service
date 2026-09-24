@@ -108,6 +108,7 @@ sequenceDiagram
     participant DB as MongoDB
 
     Client->>API: POST /metadata + Bearer
+    API->>API: require_authenticated_user
     API->>Service: create(metadata, change_type, changed_by, details)
     Service->>Metadata: create
     Metadata->>DB: start_session
@@ -117,9 +118,77 @@ sequenceDiagram
     DB-->>Metadata: commit transaction
     Metadata-->>API: Metadata com id
     API-->>Client: 201 Created
+
+    API-->>Client: 401 Unauthorized, se o token for inválido
+    API-->>Client: 422 Unprocessable Entity, dado inválido
 ```
 
 A consulta `GET /metadata/{metadata_id}/histories` usa `HistoryService` e filtra os documentos de `tab_schema_history` pelo `table_id` associado ao Metadata.
+
+## Fluxo de leitura de Metadata
+
+```mermaid
+sequenceDiagram
+  participant Client as Cliente
+  participant API as Metadata router
+  participant Service as MetadataService
+  participant Metadata as MongoMetadataAdapter
+  participant Mapper as MetadataDocumentMapper
+  participant DB as MongoDB
+
+  Client->>API: GET /metadata ou GET /metadata/{metadata_id} + Bearer
+  API->>API: require_authenticated_user
+  API->>Service: get_all() ou get_by_id(metadata_id)
+  Service->>Metadata: get_all() ou get_by_id(metadata_id)
+  Metadata->>DB: find() ou find_one(_id)
+  DB-->>Metadata: Documento(s) MongoDB
+  Metadata->>Mapper: to_domain(document)
+  Mapper-->>Metadata: Metadata validado
+  Metadata-->>Service: Metadata(s) serializado(s)
+  Service-->>API: Resultado
+  API-->>Client: 200 OK
+
+  API-->>Client: 401 Unauthorized, se o token for inválido
+  API-->>Client: 404 Not Found, se o metadata não existir
+```
+
+## Fluxo de atualização de Metadata
+
+```mermaid
+sequenceDiagram
+  participant Client as Cliente
+  participant API as Metadata router
+  participant Service as MetadataService
+  participant Schema as ValidateAndUpdateSchema
+  participant Metadata as MongoMetadataAdapter
+  participant History as MongoHistoryAdapter
+  participant DB as MongoDB
+
+  Client->>API: PUT /metadata/{metadata_id} + Bearer
+  API->>API: require_authenticated_user
+
+  alt Atualização de campos comuns
+    API->>Service: update(metadata_id, data, changed_by, change_type, details)
+    Service->>Metadata: update(...)
+  else Atualização de current_schema
+    API->>Schema: execute(metadata_id, new_schema, changed_by)
+    Schema->>Metadata: get_by_id(metadata_id)
+    Metadata->>DB: find_one(_id)
+    DB-->>Metadata: Metadata atual
+    Schema->>Schema: validar campos, duplicidades e breaking changes
+    Schema->>Metadata: update(schema, version + 1, SCHEMA_EVOLUTION)
+  end
+
+  Metadata->>DB: start_session e update documento
+  Metadata->>History: create_version(session)
+  History->>DB: insert tab_schema_history
+  DB-->>Metadata: commit transaction
+  Metadata-->>API: Metadata atualizado
+  API-->>Client: 200 OK
+
+  API-->>Client: 400 Bad Request, se a evolução for incompatível
+  API-->>Client: 404 Not Found, se o metadata não existir
+```
 
 ## Persistência
 
