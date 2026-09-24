@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -22,6 +22,14 @@ class DomainError(Exception):
 
 class MetadataNotFoundError(DomainError):
     """Raised when a metadata entry is not found."""
+
+
+class AuthenticationError(DomainError):
+    """Raised when authentication fails."""
+
+
+class UserAlreadyExistsError(DomainError):
+    """Raised when a username is already registered."""
 
 
 def _error_response(
@@ -63,7 +71,7 @@ async def handle_validation_exception(
         len(exception.errors()),
     )
     return _error_response(
-        422,
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
         "validation_error",
         "Request validation failed",
         jsonable_encoder(exception.errors()),
@@ -74,14 +82,30 @@ async def handle_not_found_exception(
     request: Request, exception: MetadataNotFoundError
 ) -> JSONResponse:
     logger.error("Metadata not found method=%s path=%s", request.method, request.url.path)
-    return _error_response(404, "metadata_not_found", str(exception) or "Metadata not found")
+    return _error_response(status.HTTP_404_NOT_FOUND, "metadata_not_found", str(exception) or "Metadata not found")
 
 
 async def handle_domain_exception(
     request: Request, exception: DomainError
 ) -> JSONResponse:
     logger.warning("Domain error method=%s path=%s", request.method, request.url.path)
-    return _error_response(400, "domain_error", str(exception) or "Domain error")
+    return _error_response(status.HTTP_400_BAD_REQUEST, "domain_error", str(exception) or "Domain error")
+
+
+async def handle_authentication_exception(
+    request: Request, exception: AuthenticationError
+) -> JSONResponse:
+    logger.warning("Authentication failed method=%s path=%s", request.method, request.url.path)
+    response = _error_response(status.HTTP_401_UNAUTHORIZED, "authentication_error", str(exception) or "Authentication failed")
+    response.headers["WWW-Authenticate"] = "Bearer"
+    return response
+
+
+async def handle_user_already_exists_exception(
+    request: Request, exception: UserAlreadyExistsError
+) -> JSONResponse:
+    logger.warning("Username already exists method=%s path=%s", request.method, request.url.path)
+    return _error_response(status.HTTP_409_CONFLICT, "user_already_exists", str(exception) or "Username already exists")
 
 
 async def handle_database_exception(
@@ -89,24 +113,30 @@ async def handle_database_exception(
 ) -> JSONResponse:
     if isinstance(exception, DuplicateKeyError):
         logger.warning("Duplicate resource method=%s path=%s", request.method, request.url.path)
-        return _error_response(409, "duplicate_resource", "Metadata already exists")
+        return _error_response(status.HTTP_409_CONFLICT, "duplicate_resource", "Metadata already exists")
 
     if isinstance(
         exception, (ConnectionFailure, ServerSelectionTimeoutError, OperationFailure)
     ):
         logger.exception("Database operation failed", exc_info=exception)
         return _error_response(
-            503,
+            status.HTTP_503_SERVICE_UNAVAILABLE,
             "database_unavailable",
             "The metadata database is unavailable",
         )
 
     logger.exception("Database error", exc_info=exception)
-    return _error_response(503, "database_error", "The metadata database request failed")
+    return _error_response(status.HTTP_503_SERVICE_UNAVAILABLE, "database_error", "The metadata database request failed")
 
 
 async def handle_unexpected_exception(
     request: Request, exception: Exception
 ) -> JSONResponse:
     logger.exception("Unhandled application error", exc_info=exception)
-    return _error_response(500, "internal_error", "An unexpected error occurred")
+    return _error_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "internal_error", "An unexpected error occurred")
+
+async def handle_unexpected_exception(
+    request: Request, exception: Exception
+) -> JSONResponse:
+    logger.exception("Unhandled application error", exc_info=exception)
+    return _error_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "internal_error", "An unexpected error occurred")

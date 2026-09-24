@@ -1,9 +1,10 @@
 from typing import Any, Optional
 
 import jwt
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.adapters.inbound.error_handlers import AuthenticationError
 from app.application.ports.history_port import HistoryPort
 from app.application.ports.metadata_port import MetadataPort
 from app.application.use_cases.history_service import HistoryService
@@ -44,11 +45,7 @@ async def require_authenticated_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict[str, Any]:
     if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise AuthenticationError("Authentication required")
 
     try:
         payload = jwt.decode(
@@ -60,17 +57,9 @@ async def require_authenticated_user(
         if not isinstance(username, str) or not username:
             raise ValueError("Token subject is missing")
     except (jwt.PyJWTError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise AuthenticationError("Invalid or expired token")
 
     user = await request.app.state.user_repository.get_by_username(username)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User is no longer active",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise AuthenticationError("User is no longer active")
     return user

@@ -2,7 +2,7 @@ from typing import Any
 
 from bson import ObjectId
 
-from app.domain.models.metadata import FieldSchema, Metadata
+from app.domain.models.metadata import Metadata
 
 
 class MetadataDocumentMapper:
@@ -19,18 +19,6 @@ class MetadataDocumentMapper:
 
     @staticmethod
     def to_domain(mongo_doc: dict[str, Any]) -> Metadata:
-        return Metadata(
-            id=str(mongo_doc["_id"]),
-            table_name=mongo_doc["table_name"],
-            description=mongo_doc.get("description"),
-            domain=mongo_doc.get("domain"),
-            storage=mongo_doc["storage"],
-            current_version=mongo_doc["current_version"],
-            current_schema=[
-                FieldSchema(**field) for field in mongo_doc["current_schema"]
-            ],
-            owner=mongo_doc["owner"],
-            created_at=mongo_doc["created_at"],
-            updated_at=mongo_doc["updated_at"],
-            data_classification=mongo_doc["data_classification"],
-        )
+        document = dict(mongo_doc)
+        document["_id"] = str(document["_id"])
+        return Metadata.model_validate(document)

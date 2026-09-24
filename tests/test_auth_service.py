@@ -1,8 +1,8 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
 
+from app.adapters.inbound.error_handlers import AuthenticationError, UserAlreadyExistsError
 from app.application.use_cases.auth_service import AuthService
 from app.domain.models.security import LoginRequest, UserCreate
 from app.infrastructure.security import get_password_hash
@@ -29,11 +29,10 @@ async def test_auth_service_rejects_duplicate_user() -> None:
     repository.get_by_username.return_value = {"username": "alice"}
     service = AuthService(repository)
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(UserAlreadyExistsError, match="Username already exists"):
         await service.create_user(
             UserCreate(username="alice", password="strong-password")
         )
-    assert error.value.status_code == 409
 
 
 @pytest.mark.asyncio
@@ -59,8 +58,7 @@ async def test_auth_service_rejects_invalid_credentials() -> None:
     repository.get_by_username.return_value = None
     service = AuthService(repository)
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(AuthenticationError, match="Invalid credentials"):
         await service.authenticate(
             LoginRequest(username="alice", password="wrong-password")
         )
-    assert error.value.status_code == 401

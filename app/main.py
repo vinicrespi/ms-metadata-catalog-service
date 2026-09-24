@@ -6,14 +6,18 @@ from fastapi.exceptions import RequestValidationError
 from pymongo.errors import PyMongoError
 
 from app.adapters.inbound.error_handlers import (
+	AuthenticationError,
 	DomainError,
 	MetadataNotFoundError,
+	UserAlreadyExistsError,
 	handle_database_exception,
+	handle_authentication_exception,
 	handle_domain_exception,
 	handle_http_exception,
 	handle_not_found_exception,
 	handle_unexpected_exception,
 	handle_validation_exception,
+	handle_user_already_exists_exception,
 )
 from app.adapters.inbound.routers import router
 from app.infrastructure.database import lifespan
@@ -45,6 +49,8 @@ async def log_requests(request, call_next):
 app.add_exception_handler(HTTPException, handle_http_exception)
 app.add_exception_handler(RequestValidationError, handle_validation_exception)
 app.add_exception_handler(MetadataNotFoundError, handle_not_found_exception)
+app.add_exception_handler(AuthenticationError, handle_authentication_exception)
+app.add_exception_handler(UserAlreadyExistsError, handle_user_already_exists_exception)
 app.add_exception_handler(DomainError, handle_domain_exception)
 app.add_exception_handler(PyMongoError, handle_database_exception)
 app.add_exception_handler(Exception, handle_unexpected_exception)
